@@ -20,7 +20,14 @@
             <artifactId>jsoup</artifactId>
             <version>1.18.3</version>
         </dependency>
+
+        <dependency>
+            <groupId>mpj</groupId>
+            <artifactId>mpj</artifactId>
+            <version>0.44</version>
+        </dependency>
     </dependencies>
+
 
 
 </project>
