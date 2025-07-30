@@ -14,7 +14,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class SequentialCrawler {
-    private static int maxDepth = 2; // Default maximum crawl depth
+    private static int maxDepth = 3; // Default maximum crawl depth
     private static int maxPages = 1000; // Default maximum pages to crawl
     private static String domain = "famnit.upr.si"; // Default domain restriction
     private static final Set<String> visitedLinks = new HashSet<>(); // Store visited links

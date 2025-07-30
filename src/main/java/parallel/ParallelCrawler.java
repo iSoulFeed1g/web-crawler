@@ -24,7 +24,14 @@ public class ParallelCrawler {
 
     private final Set<String> visited = ConcurrentHashMap.newKeySet();
     private final BlockingQueue<CrawlTask> queue = new LinkedBlockingQueue<>();
-    private final ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
+    private final ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT, new ThreadFactory() {
+        private final AtomicInteger count = new AtomicInteger(1);
+
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "Worker-" + count.getAndIncrement());
+        }
+    });
+
     private final AtomicInteger pagesCrawled = new AtomicInteger(0);
     private final AtomicInteger activeWorkers = new AtomicInteger(0);
     private final ConcurrentLinkedQueue<String> crawlLogs = new ConcurrentLinkedQueue<>();
@@ -62,7 +69,8 @@ public class ParallelCrawler {
 
                 try {
                     Thread.sleep(500);
-                } catch (InterruptedException ignored) {}
+                } catch (InterruptedException ignored) {
+                }
             }
         }).start();
 
@@ -89,27 +97,32 @@ public class ParallelCrawler {
     private void workerLoop() {
         while (!executor.isShutdown()) {
             if (pagesCrawled.get() >= MAX_PAGES)
-                return;
+                break;
 
             CrawlTask task = null;
             try {
                 task = queue.poll(1, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException ignored) {
+            }
 
             if (task == null) {
                 if (queue.isEmpty() && activeWorkers.get() == 0)
-                    return;
+                    break;
                 continue;
             }
 
             activeWorkers.incrementAndGet();
 
             try {
-                if (task.depth > MAX_DEPTH)
-                    return;
+                if (task.depth > MAX_DEPTH) {
+                    logInfo("Skipping task due to depth limit: " + task.url);
+                    continue;
+                }
 
-                logInfo("Crawling (Depth " + task.depth + "): " + task.url);
-                crawlLogs.add(getTimestamp() + " | Depth: " + task.depth + " | URL: " + task.url);
+                logInfo("[Thread " + Thread.currentThread().getName() + "] Crawling (Depth " + task.depth + "): "
+                        + task.url);
+                crawlLogs.add(getTimestamp() + " | " + Thread.currentThread().getName() +
+                        " | Depth: " + task.depth + " | URL: " + task.url);
 
                 Document doc = Jsoup.connect(task.url).get();
                 pagesCrawled.incrementAndGet();
@@ -154,14 +167,17 @@ public class ParallelCrawler {
     }
 
     private void logInfo(String message) {
-        System.out.println("[INFO] " + getTimestamp() + " - " + message);
+        System.out.println("[INFO] [" + Thread.currentThread().getName() + "] " +
+                getTimestamp() + " - " + message);
     }
 
     private void logError(String message) {
-        System.err.println("[ERROR] " + getTimestamp() + " - " + message);
+        System.err.println("[ERROR] [" + Thread.currentThread().getName() + "] " +
+                getTimestamp() + " - " + message);
     }
 
-    private record CrawlTask(String url, int depth) {}
+    private record CrawlTask(String url, int depth) {
+    }
 
     public static void main(String[] args) {
         new ParallelCrawler().start();
